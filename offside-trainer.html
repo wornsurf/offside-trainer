@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Offside Trainer — Isla</title>
+<style>
+  :root{
+    --bg:#0b0d10; --panel:#14181d; --line:#2a3038; --txt:#e8eaed; --dim:#8a94a0;
+    --blue:#00d4ff; --green:#39e6a3; --red:#ff4d5e; --amber:#ffb84d;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex; flex-direction:column; align-items:center; overflow:hidden;
+    user-select:none; -webkit-user-select:none;
+  }
+  header{
+    width:100%; max-width:560px; display:flex; align-items:center; justify-content:space-between;
+    padding:10px 16px 6px;
+  }
+  .brand{font-size:13px; letter-spacing:.22em; font-weight:600; color:var(--dim); text-transform:uppercase}
+  .brand b{color:var(--blue); font-weight:700}
+  .score{display:flex; gap:8px; font-size:12px; letter-spacing:.08em}
+  .chip{background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:4px 12px; white-space:nowrap}
+  .chip .g{color:var(--green); font-weight:700} .chip .o{color:var(--red); font-weight:700}
+  .modes{display:flex; gap:6px; width:100%; max-width:560px; padding:2px 16px 6px}
+  .mode{
+    flex:1; background:var(--panel); border:1px solid var(--line); color:var(--dim);
+    border-radius:8px; padding:6px 0; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    cursor:pointer; transition:all .15s;
+  }
+  .mode.on{border-color:var(--blue); color:var(--blue); box-shadow:0 0 12px rgba(0,212,255,.18)}
+  #wrap{position:relative; flex:1; width:100%; max-width:560px; min-height:0; display:flex; justify-content:center; padding:0 12px}
+  canvas{height:100%; max-width:100%; display:block; touch-action:manipulation; cursor:pointer}
+  footer{width:100%; max-width:560px; padding:8px 16px 14px; display:flex; flex-direction:column; gap:8px; align-items:center}
+  #passBtn{
+    width:100%; padding:14px 0; font-size:16px; font-weight:700; letter-spacing:.3em; text-transform:uppercase;
+    background:linear-gradient(180deg,#00b8e0,#0090c8); color:#03141c; border:none; border-radius:12px;
+    cursor:pointer; box-shadow:0 0 24px rgba(0,212,255,.25); transition:transform .06s;
+  }
+  #passBtn:active{transform:scale(.97)}
+  #hint{font-size:11px; color:var(--dim); letter-spacing:.1em; text-align:center; text-transform:uppercase}
+  kbd{background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:1px 6px; font-size:10px; color:var(--txt)}
+
+  .overlay{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(8,10,13,.72); backdrop-filter:blur(3px); z-index:10; padding:18px;
+  }
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:22px 22px 18px;
+    max-width:380px; width:100%; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,.5);
+  }
+  .card.bottom{align-self:flex-end; margin-bottom:6px}
+  .card h2{font-size:15px; letter-spacing:.2em; text-transform:uppercase; margin-bottom:10px}
+  .card h2.good{color:var(--green)} .card h2.bad{color:var(--red)} .card h2.var{color:var(--amber)}
+  .card p{font-size:14px; line-height:1.55; color:var(--txt); margin-bottom:8px}
+  .card .sub{font-size:12px; color:var(--dim); line-height:1.5; margin-bottom:14px}
+  .card button{
+    width:100%; padding:12px 0; border:none; border-radius:10px; font-size:13px; font-weight:700;
+    letter-spacing:.2em; text-transform:uppercase; cursor:pointer; background:#222a33; color:var(--txt);
+    border:1px solid var(--line);
+  }
+  .card button.primary{background:linear-gradient(180deg,#00b8e0,#0090c8); color:#03141c; border:none}
+  .legend{display:flex; justify-content:center; gap:18px; margin:14px 0 16px; font-size:11px; color:var(--dim); letter-spacing:.05em}
+  .legend span{display:flex; align-items:center; gap:6px}
+  .dot{width:11px; height:11px; border-radius:50%}
+  .hidden{display:none !important}
+  #flash{
+    position:absolute; top:14%; left:50%; transform:translateX(-50%); z-index:5; pointer-events:none;
+    font-weight:800; letter-spacing:.25em; text-transform:uppercase; padding:10px 26px; border-radius:10px;
+    font-size:22px; opacity:0; transition:opacity .15s;
+  }
+  #flash.show{opacity:1}
+  #flash.goal{color:#062; background:var(--green); box-shadow:0 0 40px rgba(57,230,163,.5)}
+  #flash.off{color:#fff; background:var(--red); box-shadow:0 0 40px rgba(255,77,94,.5)}
+  #flash.varc{color:#221; background:var(--amber); font-size:14px; box-shadow:0 0 30px rgba(255,184,77,.4)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">OFFSIDE&nbsp;TRAINER&nbsp;·&nbsp;<b>ISLA</b></div>
+  <div class="score">
+    <div class="chip">⚽ <span class="g" id="sGoals">0</span></div>
+    <div class="chip">🚩 <span class="o" id="sOff">0</span></div>
+  </div>
+</header>
+<div class="modes">
+  <button class="mode on" data-m="0">Learn</button>
+  <button class="mode" data-m="1">Practice</button>
+  <button class="mode" data-m="2">Pro</button>
+</div>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+  <div id="flash"></div>
+
+  <div class="overlay" id="intro">
+    <div class="card">
+      <h2 style="color:var(--blue)">The Offside Rule</h2>
+      <p>When your teammate <b>kicks the ball</b>, you can't already be <b>past the last defender</b>.</p>
+      <p class="sub">Watch Isla make her runs. Hit <b>PASS</b> when she's behind (or level with) the dashed line. Level is fine — only <i>past</i> is offside!</p>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--blue);box-shadow:0 0 8px var(--blue)"></span>Isla</span>
+        <span><span class="dot" style="background:#9aa6b2"></span>Defenders</span>
+        <span><span class="dot" style="background:var(--amber)"></span>Keeper</span>
+      </div>
+      <button class="primary" id="startBtn">Kick Off</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="recap" style="align-items:flex-end">
+    <div class="card bottom">
+      <h2 id="rTitle"></h2>
+      <p id="rBody"></p>
+      <p class="sub" id="rTip"></p>
+      <button class="primary" id="nextBtn">Next Play&nbsp;&nbsp;⏎</button>
+    </div>
+  </div>
+</div>
+<footer>
+  <button id="passBtn">Pass</button>
+  <div id="hint">Press <kbd>space</kbd> or tap the pitch to pass</div>
+</footer>
+
+<script>
+'use strict';
+(function(){
+  const W=420, H=640;
+  const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  const FIELD={l:30,r:390,t:22,b:618}, GOAL={l:162,r:258,y:FIELD.t}, HALF=596;
+
+  // ---------- state ----------
+  const S={
+    state:'intro',      // intro | play | passing | shooting | goal | flag | var | recap
+    t:Math.random()*50, anim:0, mode:0, goals:0, offs:0,
+    snap:null, P:null, flashT:0
+  };
+  const SPD=[0.75, 1.0, 1.35];          // mode speed multipliers
+  const TIPS=[
+    "It only matters where Isla is at the moment the ball is KICKED — she can sprint past the defender after!",
+    "Level with the last defender = ONSIDE. You only need to be level, not behind.",
+    "You can never be offside in your own half of the pitch.",
+    "Good strikers stay onside, then time their run as the pass is played.",
+    "The goalkeeper usually counts as one of the two defenders Isla must not get past."
+  ];
+  let tipIdx=0;
+
+  function newRound(){
+    const r=Math.random;
+    S.P={
+      defBase: 235+r()*40,
+      defAmp: 45+r()*35,
+      defSpd: .32+r()*.18,
+      defPhase: r()*6.28,
+      defXs:[108,210,312],
+      defOffPh:[r()*6.28,r()*6.28,r()*6.28],
+      islaX: 120+r()*60,
+      islaBase: 255+r()*30,
+      islaAmp: 80+r()*40,
+      islaSpd: .5+r()*.25,
+      islaPhase: r()*6.28,
+      passerX: 285+r()*30
+    };
+  }
+
+  function positions(t){
+    const P=S.P;
+    const lineBase=P.defBase+P.defAmp*Math.sin(t*P.defSpd+P.defPhase);
+    const defs=P.defXs.map((x,i)=>({
+      x:x+10*Math.sin(t*.22+i*2.4),
+      y:lineBase+13*Math.sin(t*.37+P.defOffPh[i])
+    }));
+    const isla={
+      x:P.islaX+16*Math.sin(t*.27+1.2),
+      y:Math.min(560,Math.max(105,P.islaBase+P.islaAmp*Math.sin(t*P.islaSpd+P.islaPhase)))
+    };
+    const gk={x:210+24*Math.sin(t*.5),y:58};
+    const passer={x:P.passerX,y:540+5*Math.sin(t*.8)};
+    const lineY=Math.min(defs[0].y,defs[1].y,defs[2].y);
+    return {defs,isla,gk,passer,lineY};
+  }
+  const isOff=w=> w.isla.y < w.lineY-1 && w.isla.y < HALF;
+
+  // ---------- audio ----------
+  let AC=null;
+  function audio(){ if(!AC){ try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } if(AC&&AC.state==='suspended')AC.resume(); }
+  function beep(f,dur,type,delay,vol){
+    if(!AC)return;
+    try{
+      const o=AC.createOscillator(),g=AC.createGain();
+      o.type=type||'sine'; o.frequency.value=f;
+      g.gain.setValueAtTime(0,AC.currentTime+delay);
+      g.gain.linearRampToValueAtTime(vol||.18,AC.currentTime+delay+.015);
+      g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+delay+dur);
+      o.connect(g); g.connect(AC.destination);
+      o.start(AC.currentTime+delay); o.stop(AC.currentTime+delay+dur+.05);
+    }catch(e){}
+  }
+  const sndPass=()=>beep(520,.12,'sine',0,.15);
+  const sndGoal=()=>{beep(660,.14,'sine',0);beep(830,.14,'sine',.13);beep(1050,.3,'sine',.26,.22);};
+  const sndWhistle=()=>{beep(2300,.16,'square',0,.06);beep(2300,.16,'square',.2,.06);beep(2300,.4,'square',.4,.07);};
+
+  // ---------- drawing ----------
+  function dash(x1,y1,x2,y2,seg,color,w){
+    ctx.save();ctx.strokeStyle=color;ctx.lineWidth=w||1;ctx.setLineDash(seg);
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+  }
+  function rr(x,y,w,h,r){
+    ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+  }
+  function pitch(){
+    const g=ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#0d1116');g.addColorStop(1,'#0a0c0f');
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    // faint depth bands (HUD feel)
+    ctx.strokeStyle='rgba(255,255,255,.035)';ctx.lineWidth=1;
+    for(let y=FIELD.t+50;y<FIELD.b;y+=50){ctx.beginPath();ctx.moveTo(FIELD.l+6,y);ctx.lineTo(FIELD.r-6,y);ctx.stroke();}
+    // boundary
+    ctx.strokeStyle='#2a3038';ctx.lineWidth=1.5;
+    rr(FIELD.l,FIELD.t,FIELD.r-FIELD.l,FIELD.b-FIELD.t,14);ctx.stroke();
+    // penalty box + arc
+    ctx.strokeStyle='rgba(138,148,160,.30)';ctx.lineWidth=1;
+    ctx.strokeRect(112,FIELD.t,196,108);
+    ctx.strokeRect(156,FIELD.t,108,42);
+    ctx.beginPath();ctx.arc(210,130,36,0.25,Math.PI-0.25);ctx.stroke();
+    // halfway
+    dash(FIELD.l+4,HALF,FIELD.r-4,HALF,[6,6],'rgba(138,148,160,.35)',1);
+    ctx.fillStyle='rgba(138,148,160,.55)';ctx.font='9px sans-serif';ctx.textAlign='left';
+    ctx.fillText('HALFWAY — NO OFFSIDE BEHIND THIS LINE',FIELD.l+8,HALF+13);
+    // goal
+    ctx.strokeStyle='#aeb8c2';ctx.lineWidth=2;
+    ctx.strokeRect(GOAL.l,8,GOAL.r-GOAL.l,FIELD.t-8);
+    ctx.strokeStyle='rgba(174,184,194,.25)';ctx.lineWidth=.5;
+    for(let x=GOAL.l+8;x<GOAL.r;x+=8){ctx.beginPath();ctx.moveTo(x,9);ctx.lineTo(x,FIELD.t-1);ctx.stroke();}
+  }
+  function playerDot(x,y,color,glow,label,labelBelow){
+    ctx.save();
+    ctx.shadowColor=glow||color;ctx.shadowBlur=glow?16:6;
+    ctx.fillStyle=color;
+    ctx.beginPath();ctx.arc(x,y,11,0,7);ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(x,y,11,0,7);ctx.stroke();
+    if(label){
+      ctx.fillStyle='rgba(232,234,237,.85)';ctx.font='600 9px sans-serif';ctx.textAlign='center';
+      ctx.fillText(label,x,labelBelow?y+24:y-17);
+    }
+    ctx.restore();
+  }
+  function ring(x,y,r,color,w){
+    ctx.save();ctx.strokeStyle=color;ctx.lineWidth=w||2;ctx.shadowColor=color;ctx.shadowBlur=12;
+    ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();ctx.restore();
+  }
+  function ball(x,y){
+    ctx.save();ctx.shadowColor='#fff';ctx.shadowBlur=10;ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.fill();ctx.restore();
+  }
+  function offsideLine(y,color,label,solid){
+    dash(FIELD.l+4,y,FIELD.r-4,y,solid?[1,0]:[10,7],color,2);
+    if(label){
+      ctx.save();
+      ctx.fillStyle=color;ctx.font='700 9px sans-serif';ctx.textAlign='right';
+      ctx.fillText(label,FIELD.r-8,y-6);
+      ctx.restore();
+    }
+  }
+
+  function drawWorld(w,frozen){
+    pitch();
+    const off=isOff(w);
+    // helper line (LEARN+PRACTICE during play; everyone after the kick)
+    if(!frozen && S.mode<2){
+      offsideLine(w.lineY, off?'rgba(255,77,94,.85)':'rgba(57,230,163,.8)','LAST DEFENDER');
+    }
+    if(frozen && S.snap){
+      const sOff=S.snap.off;
+      // shaded gap when offside
+      if(sOff && S.state!=='passing'){
+        const p=(S.state==='var')?Math.min(1,S.anim/.8):1;
+        ctx.fillStyle='rgba(255,77,94,'+(0.13*p)+')';
+        ctx.fillRect(FIELD.l+4,w.isla.y,FIELD.r-FIELD.l-8,(w.lineY-w.isla.y));
+        offsideLine(w.lineY,'rgba(255,77,94,.95)','LINE AT KICK',true);
+        // sweep effect
+        if(S.state==='var'&&p<1){
+          ctx.save();ctx.strokeStyle='#ff4d5e';ctx.lineWidth=3;ctx.shadowColor='#ff4d5e';ctx.shadowBlur=18;
+          ctx.beginPath();ctx.moveTo(FIELD.l+4,w.lineY);ctx.lineTo(FIELD.l+4+(FIELD.r-FIELD.l-8)*p,w.lineY);ctx.stroke();ctx.restore();
+        }
+      } else {
+        offsideLine(w.lineY, sOff?'rgba(255,77,94,.95)':'rgba(57,230,163,.95)','LINE AT KICK',true);
+      }
+    }
+    // players
+    w.defs.forEach((d,i)=>playerDot(d.x,d.y,'#9aa6b2',null,i===1?'DEFENDERS':null));
+    playerDot(w.gk.x,w.gk.y,'#ffb84d',null,'GK',true);
+    playerDot(w.passer.x,w.passer.y,'#1f8fb0',null,'TEAMMATE',true);
+    // Isla
+    const ic=(!frozen&&S.mode===0)?(off?'#ff4d5e':'#39e6a3'):'#00d4ff';
+    playerDot(w.isla.x,w.isla.y,ic,'#00d4ff','ISLA');
+    if(frozen&&S.snap){
+      ring(w.isla.x,w.isla.y,17,S.snap.off?'#ff4d5e':'#39e6a3',2.5);
+    } else {
+      const pr=15+2.5*Math.sin(S.t*4);
+      ring(w.isla.x,w.isla.y,pr,'rgba(0,212,255,.45)',1.5);
+    }
+    // live status chip (LEARN only)
+    if(!frozen&&S.mode===0){
+      const lbl=off?'OFFSIDE — WAIT!':'ONSIDE — PASS OK';
+      ctx.save();
+      ctx.font='700 10px sans-serif';
+      const tw=ctx.measureText(lbl).width+20;
+      ctx.fillStyle=off?'rgba(255,77,94,.92)':'rgba(57,230,163,.92)';
+      rr(FIELD.l+8,FIELD.t+10,tw,20,10);ctx.fill();
+      ctx.fillStyle=off?'#fff':'#04321f';ctx.textAlign='left';
+      ctx.fillText(lbl,FIELD.l+18,FIELD.t+24);
+      ctx.restore();
+    }
+  }
+
+  // ---------- flash banner ----------
+  const flash=document.getElementById('flash');
+  function showFlash(txt,cls,ms){
+    flash.textContent=txt;flash.className=cls+' show';
+    clearTimeout(S.flashT);
+    if(ms)S.flashT=setTimeout(()=>flash.classList.remove('show'),ms);
+  }
+  const hideFlash=()=>flash.classList.remove('show');
+
+  // ---------- pass / outcomes ----------
+  function pass(){
+    if(S.state!=='play')return;
+    audio();sndPass();
+    const w=positions(S.t);
+    S.snap={w:JSON.parse(JSON.stringify(w)),off:isOff(w)};
+    S.state='passing';S.anim=0;
+  }
+  function steps(px){return Math.max(1,Math.round(px/13));}
+
+  function showRecap(){
+    const r=document.getElementById('recap');
+    const title=document.getElementById('rTitle'),body=document.getElementById('rBody'),tip=document.getElementById('rTip');
+    const sn=S.snap, gap=Math.abs(sn.w.lineY-sn.w.isla.y), st=steps(gap);
+    if(sn.off){
+      title.textContent='🚩 Offside';title.className='bad';
+      body.innerHTML='When the ball was <b>kicked</b>, Isla was already <b style="color:var(--red)">'+st+' step'+(st>1?'s':'')+' past</b> the last defender. The red line shows where she needed to stay.';
+    }else{
+      title.textContent='✅ Onside — Goal!';title.className='good';
+      body.innerHTML=gap<14
+        ?'Isla was <b style="color:var(--green)">level with the defender</b> when the ball was kicked — and level is <b>onside</b>. Perfect striker timing!'
+        :'When the ball was kicked, Isla was <b style="color:var(--green)">'+st+' step'+(st>1?'s':'')+' behind</b> the last defender. Onside — now she can run!';
+    }
+    tip.textContent='💡 '+TIPS[tipIdx++%TIPS.length];
+    r.classList.remove('hidden');
+    S.state='recap';
+  }
+  function nextPlay(){
+    document.getElementById('recap').classList.add('hidden');
+    hideFlash();newRound();S.t=Math.random()*50;S.snap=null;S.state='play';
+  }
+
+  // ---------- loop ----------
+  let last=performance.now();
+  function loop(now){
+    const dt=Math.min(.05,(now-last)/1000);last=now;
+    update(dt);render();
+    requestAnimationFrame(loop);
+  }
+  function update(dt){
+    if(S.state==='play'){S.t+=dt*SPD[S.mode];return;}
+    if(S.state==='intro'||S.state==='recap')return;
+    S.anim+=dt;
+    if(S.state==='passing'&&S.anim>=.55){
+      if(S.snap.off){S.state='flag';S.anim=0;sndWhistle();showFlash('Offside','off');}
+      else{S.state='shooting';S.anim=0;}
+    }else if(S.state==='shooting'&&S.anim>=.5){
+      S.state='goal';S.anim=0;S.goals++;updateScore();sndGoal();showFlash('GOAL!','goal');
+    }else if(S.state==='goal'&&S.anim>=1.1){
+      hideFlash();showRecap();
+    }else if(S.state==='flag'&&S.anim>=.9){
+      S.state='var';S.anim=0;S.offs++;updateScore();showFlash('VAR · CHECKING OFFSIDE','varc');
+    }else if(S.state==='var'&&S.anim>=1.5){
+      hideFlash();showRecap();
+    }
+  }
+  function lerp(a,b,p){return a+(b-a)*p;}
+  function ease(p){return p<0?0:p>1?1:p*p*(3-2*p);}
+  function render(){
+    if(S.state==='intro'){drawWorld(positions(S.t),false);return;}
+    if(S.state==='play'){drawWorld(positions(S.t),false);
+      const w=positions(S.t);ball(w.passer.x-9,w.passer.y-9);return;}
+    const w=S.snap.w;
+    drawWorld(w,true);
+    if(S.state==='passing'){
+      const p=ease(S.anim/.55);
+      const bx=lerp(w.passer.x-9,w.isla.x,p), by=lerp(w.passer.y-9,w.isla.y,p);
+      ctx.save();ctx.strokeStyle='rgba(0,212,255,.35)';ctx.lineWidth=1.5;ctx.setLineDash([4,5]);
+      ctx.beginPath();ctx.moveTo(w.passer.x-9,w.passer.y-9);ctx.lineTo(bx,by);ctx.stroke();ctx.restore();
+      ball(bx,by);
+    }else if(S.state==='shooting'){
+      const p=ease(S.anim/.5);
+      ball(lerp(w.isla.x,210,p),lerp(w.isla.y,FIELD.t-6,p));
+    }else if(S.state==='goal'){
+      ball(210,FIELD.t-6);
+      // burst
+      const p=Math.min(1,S.anim/.6);
+      ctx.save();ctx.strokeStyle='rgba(57,230,163,'+(1-p)+')';ctx.lineWidth=2;
+      for(let i=0;i<10;i++){const a=i*0.628;
+        ctx.beginPath();ctx.moveTo(210+Math.cos(a)*18*p*3,FIELD.t+Math.sin(a)*18*p*3);
+        ctx.lineTo(210+Math.cos(a)*(18*p*3+10),FIELD.t+Math.sin(a)*(18*p*3+10));ctx.stroke();}
+      ctx.restore();
+    }else{ // flag, var, recap
+      ball(w.isla.x,w.isla.y);
+    }
+    // "ball kicked here" marker after the kick
+    ctx.save();ctx.fillStyle='rgba(138,148,160,.8)';ctx.font='600 8px sans-serif';ctx.textAlign='center';
+    ctx.fillText('KICKED HERE',w.passer.x,w.passer.y+36);ctx.restore();
+  }
+  function updateScore(){
+    document.getElementById('sGoals').textContent=S.goals;
+    document.getElementById('sOff').textContent=S.offs;
+  }
+
+  // ---------- input ----------
+  function action(){
+    if(S.state==='intro'){document.getElementById('intro').classList.add('hidden');audio();S.state='play';return;}
+    if(S.state==='recap'){nextPlay();return;}
+    pass();
+  }
+  document.getElementById('startBtn').addEventListener('click',action);
+  document.getElementById('nextBtn').addEventListener('click',action);
+  document.getElementById('passBtn').addEventListener('click',action);
+  cv.addEventListener('pointerdown',e=>{e.preventDefault();action();});
+  window.addEventListener('keydown',e=>{
+    if(e.code==='Space'||e.code==='Enter'){if(e.repeat)return;e.preventDefault();action();}
+  });
+  document.querySelectorAll('.mode').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('.mode').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');S.mode=+b.dataset.m;
+  }));
+
+  // ---------- sizing ----------
+  function size(){
+    const wrap=document.getElementById('wrap');
+    const availH=wrap.clientHeight, availW=wrap.clientWidth;
+    const scale=Math.min(availH/H,availW/W);
+    const dpr=window.devicePixelRatio||1;
+    cv.style.width=(W*scale)+'px';cv.style.height=(H*scale)+'px';
+    cv.width=W*scale*dpr;cv.height=H*scale*dpr;
+    ctx.setTransform(scale*dpr,0,0,scale*dpr,0,0);
+  }
+  window.addEventListener('resize',size);
+
+  newRound();size();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
