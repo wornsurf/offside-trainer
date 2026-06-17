@@ -45,6 +45,17 @@
   #hint{font-size:11px; color:var(--dim); letter-spacing:.1em; text-align:center; text-transform:uppercase}
   kbd{background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:1px 6px; font-size:10px; color:var(--txt)}
 
+  /* on-screen movement pad (touch devices only) */
+  #dpad{position:absolute; left:14px; bottom:14px; width:138px; height:138px; z-index:7; display:none; pointer-events:none}
+  #dpad.show{display:block}
+  .dbtn{position:absolute; width:44px; height:44px; border-radius:11px; border:1px solid var(--line);
+    background:rgba(20,24,29,.66); color:var(--blue); font-size:17px; line-height:1;
+    display:flex; align-items:center; justify-content:center; pointer-events:auto;
+    -webkit-user-select:none; user-select:none; backdrop-filter:blur(3px); touch-action:none;}
+  .dbtn.on{background:var(--blue); color:#03141c; box-shadow:0 0 12px rgba(0,212,255,.4)}
+  .dbtn.up{left:47px; top:0} .dbtn.left{left:0; top:47px}
+  .dbtn.right{left:94px; top:47px} .dbtn.down{left:47px; top:94px}
+
   .overlay{
     position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     background:rgba(8,10,13,.72); backdrop-filter:blur(3px); z-index:10; padding:18px;
@@ -94,6 +105,12 @@
 <div id="wrap">
   <canvas id="cv"></canvas>
   <div id="flash"></div>
+  <div id="dpad">
+    <button class="dbtn up" data-k="up" aria-label="up">▲</button>
+    <button class="dbtn left" data-k="left" aria-label="left">◀</button>
+    <button class="dbtn right" data-k="right" aria-label="right">▶</button>
+    <button class="dbtn down" data-k="down" aria-label="down">▼</button>
+  </div>
 
   <div class="overlay" id="intro">
     <div class="card">
@@ -141,6 +158,7 @@
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const ISLA_SPD=170, IB={xMin:46,xMax:374,yMin:100,yMax:600};
   const DEF_FRONT=12;   // the defender's body also reaches toward goal — line sits at their foremost point
+  const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
   const SPD=[0.75, 1.0, 1.35];
   const TIPS=[
     "Offside is judged by your furthest-FORWARD scoring part: head, shoulder, knee or foot.",
@@ -538,8 +556,26 @@
   }
 
   // ---------- loop ----------
+  // on-screen movement pad
+  const dpadEl=document.getElementById('dpad');
+  if(isTouch){
+    document.querySelectorAll('.dbtn').forEach(b=>{
+      const k=b.dataset.k;
+      const on=e=>{e.preventDefault();S.keys[k]=true;b.classList.add('on');};
+      const off=e=>{e.preventDefault();S.keys[k]=false;b.classList.remove('on');};
+      b.addEventListener('pointerdown',on);
+      ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,off));
+    });
+  }
+  let dpadOn=null;
+  function syncDpad(){
+    if(!isTouch)return;
+    const v=(S.state==='play'||S.state==='control');
+    if(v!==dpadOn){dpadOn=v; dpadEl.classList.toggle('show',v); if(!v){S.keys.up=S.keys.down=S.keys.left=S.keys.right=false;}}
+  }
+
   let last=performance.now();
-  function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;update(dt);render();requestAnimationFrame(loop);}
+  function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;update(dt);syncDpad();render();requestAnimationFrame(loop);}
   function moveIsla(dt){
     const vx=(S.keys.right?1:0)-(S.keys.left?1:0);
     const vy=(S.keys.down?1:0)-(S.keys.up?1:0);
@@ -637,10 +673,12 @@
     const pb=document.getElementById('passBtn'), hint=document.getElementById('hint');
     if(S.state==='control'){
       pb.textContent='Shoot';
-      hint.innerHTML='<kbd>← ↑ ↓ →</kbd> dribble in · <kbd>space</kbd> or tap to shoot';
+      hint.innerHTML=isTouch?'Use the pad to dribble in, then tap SHOOT'
+                            :'<kbd>← ↑ ↓ →</kbd> dribble in · <kbd>space</kbd> or tap to shoot';
     }else{
       pb.textContent='Pass';
-      hint.innerHTML='<kbd>← ↑ ↓ →</kbd> move Isla · <kbd>space</kbd> or tap to pass';
+      hint.innerHTML=isTouch?'Use the pad to move Isla, then tap PASS'
+                            :'<kbd>← ↑ ↓ →</kbd> move Isla · <kbd>space</kbd> or tap to pass';
     }
   }
   function action(){
@@ -675,7 +713,6 @@
   window.addEventListener('resize',size);
   newRound();size();requestAnimationFrame(loop);
 })();
-  
 </script>
 </body>
 </html>
